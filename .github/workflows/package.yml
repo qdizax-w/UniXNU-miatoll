@@ -58,8 +58,15 @@ jobs:
           echo "DEVELOPER_DIR=$x/Contents/Developer" >> "$GITHUB_ENV"
           echo "using $x"
       - name: tools
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          brew install dtc llvm lld cmake mtools ninja bison pkgconf blacktop/tap/ipsw
+          brew install dtc llvm lld cmake mtools ninja bison pkgconf
+          # ipsw from its pinned release: newer Homebrew refuses the untrusted blacktop tap.
+          mkdir -p "$RUNNER_TEMP/ipsw" && gh release download v3.1.741 -R blacktop/ipsw \
+            --pattern 'ipsw_3.1.741_macOS_universal.tar.gz' -O - | tar -xz -C "$RUNNER_TEMP/ipsw"
+          d=$(dirname "$(find "$RUNNER_TEMP/ipsw" -type f -name ipsw | head -1)")
+          echo "$d" >> "$GITHUB_PATH"; export PATH="$d:$PATH"; ipsw version
           B=$(brew --prefix)   # /opt/homebrew on arm64 images, /usr/local on Intel ones
           {
             echo "$B/opt/llvm/bin"
