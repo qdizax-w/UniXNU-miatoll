@@ -220,24 +220,45 @@ volatile uint64_t armcpu_spi_unhandled = 0;
 volatile uint32_t armcpu_spi_unhandled_id = 0;
 }
 
+// /cpus nub matching diagnostics for the boot-progress panel (package/BootProgress.c, board kit):
+// how many nubs probed, which check declined them, and the properties of the last one.
+extern "C" {
+volatile uint32_t armcpu_probe_calls, armcpu_probe_declined_type, armcpu_probe_declined_number, armcpu_probe_accepted;
+volatile uint32_t armcpu_probe_last_reg, armcpu_probe_last_type_len, armcpu_probe_last_reg_len;
+volatile int32_t armcpu_probe_last_number, armcpu_probe_boot_number;
+volatile uint32_t armcpu_probe_smp_arg;
+}
+
 IOService *ArmCpu::probe (IOService *provider, SInt32 *score)
 {
   OSData *type = OSDynamicCast (OSData, provider->getProperty ("device_type"));
   OSData *reg = OSDynamicCast (OSData, provider->getProperty ("reg"));
   uint32_t id;
+  armcpu_probe_calls = armcpu_probe_calls + 1;
   if ((type == nullptr) || (type->getLength () != 4) ||
       (memcmp (type->getBytesNoCopy (), "cpu", 4) != 0) ||
       (reg == nullptr) || (reg->getLength () < sizeof (id))) {
+    armcpu_probe_declined_type = armcpu_probe_declined_type + 1;
+    if (type != nullptr) { armcpu_probe_last_type_len = type->getLength (); }
+    if (reg != nullptr) { armcpu_probe_last_reg_len = reg->getLength (); }
     return nullptr;
   }
   memcpy (&id, reg->getBytesNoCopy (), sizeof (id));
+  armcpu_probe_last_reg = id;
+  armcpu_probe_last_type_len = type->getLength ();
+  armcpu_probe_last_reg_len = reg->getLength ();
+  armcpu_probe_last_number = ml_get_cpu_number (id);
+  armcpu_probe_boot_number = ml_get_boot_cpu_number ();
   if (ml_get_cpu_number (id) != ml_get_boot_cpu_number ()) {
     unsigned smp = 0;
     PE_parse_boot_argn ("sheng-smp", &smp, sizeof (smp));
+    armcpu_probe_smp_arg = smp;
     if (smp == 0 || ml_get_cpu_number (id) < 0 || ml_get_cpu_number (id) >= ARMCPU_SMP_SLOTS) {
+      armcpu_probe_declined_number = armcpu_probe_declined_number + 1;
       return nullptr; // Secondary startup is opt-in (sheng-smp=1).
     }
   }
+  armcpu_probe_accepted = armcpu_probe_accepted + 1;
   return IOCPU::probe (provider, score);
 }
 
