@@ -75,7 +75,9 @@ loader = "firmware"
 title = "UniXNU miatoll"
 # Must equal the memory node of dts/miatoll.dts.
 dram_size = "0xfe000000"
-panic_screen = true
+# The panic screen does not fit: patch-xnu-entry-probe.py finds the kernel text padding at
+# 0xfffffff0073ed500 in use (same as rmx1971). The boot-progress panel still prints panics.
+panic_screen = false
 kernel_args = [
   "-v",
   "debug=0x14e",
