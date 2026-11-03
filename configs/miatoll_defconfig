@@ -1,0 +1,47 @@
+# Kernel configuration of the miatoll image. CONFIG_XNU_<NAME> becomes XNU_<NAME> for the kernel build.
+#
+# Format 2: arch:configs/common.config, soc:configs/sm7125.config and os:configs/ipados.config apply
+# first, then this file overrides them.
+#
+# First-console configuration, the one the SDM710 ports (sirius, rmx1971) were qualified with:
+# ArmDTPlatform and ArmCpu drive the board through the ADT generated from dts/miatoll.dts, the boot
+# progress kit draws the kernel console on the panel, and nothing storage-, GPU- or display-driver
+# related is enabled. The intended first result is XNU reaching its console and stopping at the root
+# device.
+
+CONFIG_XNU_BUILD_ARCHIVES=y
+CONFIG_XNU_SOURCE_CORECRYPTO14=y
+CONFIG_XNU_SOURCE_PTHREAD=y
+CONFIG_XNU_ARM_DT_PLATFORM=y
+CONFIG_XNU_ARMCPU=y
+# The boot progress display (package/, mounted as kits/miatoll): the kernel console lines on the
+# frame buffer in a readable font. scripts/build-xnu-4k-baseline.sh relaxes upstream's UFS interlock.
+CONFIG_XNU_BOOT_PROGRESS=y
+# The BCM2837 machine config hardcodes a Raspberry Pi panic-log address; with this the panic region
+# comes from the device tree instead (absent here, which skips it).
+CONFIG_XNU_DT_PANIC_REGION=y
+
+CONFIG_XNU_CRYPTO_BOOTSTRAP="prelinked"
+# The DEVELOPMENT kernel references native_legacy_display_probe() unconditionally
+# (offline-component-load-probes.patch); scripts/build-miatoll-probes.py keeps the link closed.
+CONFIG_XNU_EXTRA_LD_ARCHIVES="-Wl,-force_load,{tree}/build/miatoll-probes/libMiatollProbes.a"
+CONFIG_XNU_NATIVE_UFS=n
+CONFIG_XNU_NATIVE_AES=n
+CONFIG_XNU_NATIVE_VIRTIO_BLOCK=n
+CONFIG_XNU_NATIVE_RAM_BLOCK=n
+CONFIG_XNU_NATIVE_MOBILE_DISPLAY=n
+CONFIG_XNU_NATIVE_LEGACY_DISPLAY=n
+CONFIG_XNU_NATIVE_ADRENO=n
+CONFIG_XNU_ARMVIRT_PLATFORM=n
+
+# Profile settings off on purpose until the stage that needs them (see the sirius record).
+# Do NOT set CONFIG_XNU_NATIVE_ARCH_TIMER=n: at 0 the BCM2837 local interrupt router store
+# (0x40000040) is compiled into start.s and aborts before the MMU on this SoC.
+CONFIG_XNU_NATIVE_PAN=n
+CONFIG_XNU_SOURCE_MOCKFS=n
+CONFIG_XNU_TRUST_CACHE_RUNTIME=y
+CONFIG_XNU_NATIVE_CS_HASH_CACHE=n
+
+# The bsd_init hook of sheng-platform-power.patch, so package/MiatollPmgr.cpp can publish the
+# ApplePMGRNub AMFI waits for (the kernelcache stays unmodified).
+CONFIG_XNU_SHENG_PMGR=1

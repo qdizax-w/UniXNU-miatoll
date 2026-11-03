@@ -1,0 +1,9 @@
+# Required firmware inputs: relative path | source | SHA-256 | consumer
+#
+# None for the first-console stage. The firmware volume's Qualcomm DXE drivers come from
+# Project-Silicium/Device-Binaries (Binaries/miatoll of the uefi-miatoll checkout), not from here.
+#
+# Later stages (fetched from the phone or the official MIUI fastboot image, never committed):
+#   fw-gpu/a630_sqe.fw, a618_gmu.bin, a615_zap.mdt/.b00-.b02   - Adreno 618 (GPU stage)
+#   fw-touch/ft8756.bin                                         - FocalTech FT8756 touch
+#   modem/wlan firmware (WCN3990 through the modem)             - Wi-Fi

@@ -1,0 +1,127 @@
+# Board description of the Xiaomi Redmi Note 9S / 9 Pro / Note 10 Lite / POCO M2 Pro (miatoll,
+# SM7125), read by the unixnu build driver.
+#
+# Format 2: the ARM64, SoC (sm7125), OS (ipados-17.7.11-21H461) and device layers merge; this file
+# states what the board changes. SM7125 (Cortex-A76/A55, ARMv8.2) has no pointer authentication,
+# so only the arm64 iPadOS 17.7.11 userland applies.
+#
+# Boot chain: stock ABL -> boot.img (BootShim + Mu-Silicium miatollPkg from qdizax-w/uefi-miatoll,
+# appended Mu miatoll.dtb, the payload FAT volume as the ramdisk) -> UniXNURamDiskDxe publishes the
+# ramdisk -> UniXNU menu -> DarwinBoot -> XNU.
+#
+# Stage: first console. XNU is expected to reach its boot-progress console and stop at the root
+# device; userdata is not touched by anything in this configuration.
+
+schema_version = 2
+
+[board]
+name = "miatoll"
+soc = "SM7125"
+soc_source = "sm7125"
+os_profile = "ipados-17.7.11-21H461"
+description = "Xiaomi Redmi Note 9S / 9 Pro / Note 10 Lite / POCO M2 Pro"
+kit = "miatoll"
+
+# ArmCpu is this repository's copy in drivers/ArmCpu: upstream plus armcpu-timer-intid (SM7125 wires
+# the EL1 virtual timer to INTID 19, not 27).
+[components]
+include = ["ArmDTPlatform", "ArmCpu", "XnuPrelink", "DarwinBoot"]
+
+[kernel]
+defconfig = "miatoll_defconfig"
+config_fragments = ["arch:configs/common.config", "soc:configs/sm7125.config", "os:configs/ipados.config"]
+patch_series = ["arch:patches/xnu/series", "soc:patches/xnu/series", "os:patches/xnu/series", "device:patches/xnu/series"]
+archives = [
+  "build-corecrypto-14.py",
+  "build-corecrypto-14.py --namespace",
+  "component:ArmDTPlatform",
+  "component:ArmCpu",
+  "build-libpthread-kernel.py",
+  "build-miatoll-probes.py",          # dormant legacy-display probe stub (package/LegacyDisplayProbe.cpp)
+  "build-boot-progress.py",           # the kernel console on the panel (package/BootProgress.c)
+  "build-miatoll-pmgr.py",            # the ApplePMGRNub AMFI waits for (package/MiatollPmgr.cpp)
+]
+
+[device_tree]
+source = "device:dts/miatoll.dts"
+include_dirs = ["soc:dts"]
+
+[firmware]
+config = "miatoll"
+dsc = "Platforms/Xiaomi/miatollPkg/miatoll.dsc"
+fd = "Build/miatollPkg/{target}_CLANGPDB/FV/SILICIUM_UEFI.fd"
+preflight = ["scripts/fetch-miatoll-dtb.py"]
+submodules = ["Common/Mu", "Common/Mu_OEM_Sample", "Silicium-ACPI", "Silicon/Silicium/OpensslPkg/Library/OpensslLib/openssl"]
+patches = ["Resources/MuPatches/Gic-Spurious.patch"]
+packages = ["{uefi}", "{uefi}/Platforms/Xiaomi", "{tree}/package", "{tree}/drivers/DarwinBoot", "{edk2}", "{uefi}/Common/Mu", "{uefi}/Common/Mu_OEM_Sample", "{uefi}/Silicon/Qualcomm", "{uefi}/Silicon/Silicium", "{uefi}/Silicium-ACPI", "{uefi}/Silicium-ACPI/Platforms/Xiaomi", "{uefi}/Silicium-ACPI/Silicon/Qualcomm"]
+
+[firmware.defines]
+# Mu-Silicium miatoll model: 0 curtana (Redmi Note 9S), 1 curtana India, 2 curtana (Note 10 Lite),
+# 3 joyeuse, 4 excalibur, 5 gram. Only the SMBIOS strings differ.
+DEVICE_MODEL = "0"
+ENABLE_SECUREBOOT = "0"
+MEMORY_PROTECTION = "TRUE"
+SHIP_MODE = "FALSE"
+BUILDID_STRING = "miatoll-unixnu"
+
+[bootimg]
+# Mu-Silicium's own miatoll.dtb, copied into the build tree by scripts/fetch-miatoll-dtb.py.
+dtb = "build/miatoll/miatoll.dtb"
+
+[payload]
+volume = "MIATOLLESP"
+size_mib = 96
+loader = "firmware"
+title = "UniXNU miatoll"
+# Must equal the memory node of dts/miatoll.dts.
+dram_size = "0xfe000000"
+panic_screen = true
+kernel_args = [
+  "-v",
+  "debug=0x14e",
+  "kt_fixed_zones=120",
+  "ml-timeout-lock-panic-scale=40",
+  "-no_slto_panic",
+  "boot-progress=2",                # the kernel console on the panel: this phone has no UART
+  "sheng-smp=1",                    # ArmCpu claims every /cpus nub
+  "cpus=8",
+  "armcpu-self-ipi=1",
+  "armcpu-timer-intid=19",          # SM7125 virtual timer: GIC PPI 3 (INTID 19), not 27
+  "sheng-pmgr=2",                   # publish an ApplePMGRNub for the unchanged AMFI
+  "amfi_get_out_of_my_way=1",
+]
+
+[payload.adt]
+chip_id = "8011"
+root_match_volume_uuid = "04769D26-2CA0-4825-B443-E2E5F88300F2"
+# DarwinBoot allocates this contiguous window from the EFI memory map. 512 MiB is the value the
+# SDM710 ports boot with; raise it once the first console reports the map (rmx1971 failed with
+# "out of resources" when it asked for more than one contiguous EFI block holds).
+owned_memory_size = "0x20000000"
+unique_chip_id = "required"
+
+[adt.product.string]
+model = "xiaomi,miatoll"
+
+[adt.defaults.u32]
+sleep-disabled = 1
+
+[adt.chosen.u32]
+# No CTRR on this SoC: kernel text stays writable by hardware, which XNU must be told.
+kernel-ctrr-to-be-enabled = 0
+
+[adt.buttons.string]
+compatible = "buttons"
+device_type = "buttons"
+
+[adt.buttons.strings]
+button-names = ["hold", "voldown", "volup"]
+
+[adt.buttons.u32]
+home-button-type = 2
+
+[package]
+unixnu = "../UniXNU"
+
+[package.defconfig]
+"ipados-17.7.11-21H461" = "miatoll_defconfig"

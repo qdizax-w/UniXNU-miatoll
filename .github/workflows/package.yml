@@ -1,0 +1,99 @@
+name: package
+
+# scripts/package.sh of this repository on a macOS runner, with the UniXNU and uefi-miatoll
+# checkouts beside it, the layout board.toml names. The platform seed comes from the repository
+# secret UNIXNU_UNIQUE_CHIP_ID and is baked into the images, so the run's artifacts belong to one
+# device alone: download them, then delete the run.
+
+on:
+  workflow_dispatch:
+    inputs:
+      unixnu_ref:
+        description: "UniXNU revision"
+        type: string
+        default: "82b847c4ac3f68a57024b3082ffa3a03442defd9"
+      uefi_ref:
+        description: "uefi-miatoll revision"
+        type: string
+        default: "miatoll"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: package-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  package:
+    runs-on: macos-26
+    timeout-minutes: 300
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: device
+          submodules: recursive
+      - uses: actions/checkout@v4
+        with:
+          repository: UniXNU/UniXNU
+          ref: ${{ inputs.unixnu_ref }}
+          path: UniXNU
+          submodules: recursive
+      - uses: actions/checkout@v4
+        with:
+          repository: qdizax-w/uefi-miatoll
+          ref: ${{ inputs.uefi_ref }}
+          path: uefi-miatoll
+          submodules: recursive
+      - name: tools
+        run: |
+          brew install dtc llvm lld cmake mtools ninja bison pkgconf blacktop/tap/ipsw
+          {
+            echo "/opt/homebrew/opt/llvm/bin"
+            echo "/opt/homebrew/opt/lld/bin"
+            echo "/opt/homebrew/opt/bison/bin"
+          } >> "$GITHUB_PATH"
+          ok=1
+          for t in clang xcodebuild make git ninja cmake dtc fdtget fdtput aea compression_tool \
+                   mformat mcopy ipsw; do
+            command -v "$t" >/dev/null || { echo "missing tool: $t"; ok=0; }
+          done
+          for t in lld-link llvm-lib llvm-rc llvm-nm llvm-objcopy; do
+            [ -f "/opt/homebrew/opt/llvm/bin/$t" ] || [ -f "/opt/homebrew/opt/lld/bin/$t" ] || { echo "missing tool: $t"; ok=0; }
+          done
+          [ "$ok" = 1 ]
+      - name: platform seed
+        env:
+          seed: ${{ secrets.UNIXNU_UNIQUE_CHIP_ID }}
+        run: |
+          if ! [[ "$seed" =~ ^[0-9a-fA-F]{8}$ ]]; then
+            echo 'Set the repository secret UNIXNU_UNIQUE_CHIP_ID: the platform seed of the device, 8 hex digits.' >&2
+            exit 1
+          fi
+      - name: package
+        working-directory: device
+        env:
+          UNIXNU_UNIQUE_CHIP_ID: ${{ secrets.UNIXNU_UNIQUE_CHIP_ID }}
+          GITHUB_TOKEN: ${{ github.token }}
+        run: scripts/package.sh --os 17 --uefi ../uefi-miatoll
+      - name: logs
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: logs
+          retention-days: 3
+          if-no-files-found: ignore
+          path: |
+            UniXNU/out/miatoll/*/*/logs/
+            UniXNU/out/miatoll/*/*/boot/boot.json
+      - name: images
+        uses: actions/upload-artifact@v4
+        with:
+          name: images-17
+          retention-days: 1
+          if-no-files-found: error
+          path: |
+            UniXNU/out/miatoll/*/*/boot/boot.img
+            UniXNU/out/miatoll/*/*/payload/payload.img
+            UniXNU/out/miatoll/*/*/kernel/kernel.macho
+            UniXNU/out/miatoll/*/*/package.manifest.json

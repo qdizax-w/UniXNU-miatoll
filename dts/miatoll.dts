@@ -1,0 +1,48 @@
+/dts-v1/;
+// SPDX-License-Identifier: BSD-2-Clause-Patent
+/*
+ * Xiaomi Redmi Note 9S / 9 Pro / Note 10 Lite / POCO M2 Pro (miatoll), Qualcomm SM7125.
+ *
+ * UniXNU compiles this tree and derives the Apple device tree (kernel.macho.adt) from it:
+ *   - the memory node becomes /chosen/dram-base and /chosen/dram-size and must match
+ *     [payload] dram_size of board.toml
+ *   - /cpus becomes the ADT /cpus, in this order, boot CPU first
+ *   - /psci becomes the ADT /psci
+ *   - each node carrying "unixnu,adt-name" is exported under the ADT /arm-io window
+ */
+
+/include/ "sm7125.dtsi"
+
+/ {
+	model = "Xiaomi Redmi Note 9S (miatoll)";
+	compatible = "xiaomi,miatoll", "qcom,sm7125";
+	#address-cells = <2>;
+	#size-cells = <2>;
+
+	/*
+	 * DRAM of the 4 GiB model as the kernel sees it: 0x80000000 through 0x17e000000 (the top
+	 * of the second bank the ABL reports). The vendor carve-outs below 0xc0000000 (TZ, PIL,
+	 * the splash region at 0x9c000000) stay reserved in the EFI memory map; XNU only runs in
+	 * the owned window DarwinBoot allocates from that map ([payload.adt] owned_memory_size).
+	 * 6 GiB units have more above 0x17e000000; this node is the common part.
+	 */
+	memory@80000000 {
+		device_type = "memory";
+		reg = <0x0 0x80000000 0x0 0xfe000000>;
+	};
+};
+
+/*
+ * Eight Kryo 465 cores, MPIDR Affinity1 0x000..0x700: cpu0-5 Cortex-A55 (efficiency),
+ * cpu6-7 Cortex-A76 (performance). The boot CPU is cpu0.
+ */
+&cpus {
+	cpu@0   { device_type = "cpu"; compatible = "arm,cortex-a55"; reg = <0x0>;   enable-method = "psci"; unixnu,cluster-type = "E"; };
+	cpu@100 { device_type = "cpu"; compatible = "arm,cortex-a55"; reg = <0x100>; enable-method = "psci"; unixnu,cluster-type = "E"; };
+	cpu@200 { device_type = "cpu"; compatible = "arm,cortex-a55"; reg = <0x200>; enable-method = "psci"; unixnu,cluster-type = "E"; };
+	cpu@300 { device_type = "cpu"; compatible = "arm,cortex-a55"; reg = <0x300>; enable-method = "psci"; unixnu,cluster-type = "E"; };
+	cpu@400 { device_type = "cpu"; compatible = "arm,cortex-a55"; reg = <0x400>; enable-method = "psci"; unixnu,cluster-type = "E"; };
+	cpu@500 { device_type = "cpu"; compatible = "arm,cortex-a55"; reg = <0x500>; enable-method = "psci"; unixnu,cluster-type = "E"; };
+	cpu@600 { device_type = "cpu"; compatible = "arm,cortex-a76"; reg = <0x600>; enable-method = "psci"; unixnu,cluster-type = "P"; };
+	cpu@700 { device_type = "cpu"; compatible = "arm,cortex-a76"; reg = <0x700>; enable-method = "psci"; unixnu,cluster-type = "P"; };
+};

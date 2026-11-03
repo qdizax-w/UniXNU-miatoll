@@ -1,0 +1,9 @@
+# Extra sources of the miatoll port. UniXNU components resolve from the component catalog; this
+# file pins the shared SoC layer board.toml selects as soc_source. Bump the commit after reviewing a
+# change there; unixnu.lock records what a fetch produced.
+
+[[source]]
+name = "sm7125"
+kind = "soc"
+git = "https://github.com/qdizax-w/UniXNU-sm7125-common"
+commit = "4b37e037f052069c28dcb5c3ec35dcc866336c18"
