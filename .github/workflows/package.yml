@@ -16,6 +16,11 @@ on:
         description: "uefi-miatoll revision"
         type: string
         default: "miatoll"
+      runner:
+        description: "Runner image (macos-26 is often out of capacity)"
+        type: choice
+        options: ["macos-15", "macos-26", "macos-15-intel"]
+        default: "macos-15"
 
 permissions:
   contents: read
@@ -26,7 +31,7 @@ concurrency:
 
 jobs:
   package:
-    runs-on: macos-26
+    runs-on: ${{ inputs.runner }}
     timeout-minutes: 300
     steps:
       - uses: actions/checkout@v4
@@ -45,6 +50,13 @@ jobs:
           ref: ${{ inputs.uefi_ref }}
           path: uefi-miatoll
           submodules: recursive
+      - name: xcode
+        run: |
+          # The build is developed with Xcode 26; select the newest Xcode 26 the image carries.
+          x=$(ls -d /Applications/Xcode_26*.app 2>/dev/null | sort -V | tail -1)
+          [ -n "$x" ] || { echo "no Xcode 26 on this image"; ls -d /Applications/Xcode*; exit 1; }
+          echo "DEVELOPER_DIR=$x/Contents/Developer" >> "$GITHUB_ENV"
+          echo "using $x"
       - name: tools
         run: |
           brew install dtc llvm lld cmake mtools ninja bison pkgconf blacktop/tap/ipsw
