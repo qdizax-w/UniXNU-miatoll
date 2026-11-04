@@ -13,9 +13,9 @@ on:
         type: string
         default: "82b847c4ac3f68a57024b3082ffa3a03442defd9"
       uefi_ref:
-        description: "uefi-miatoll revision"
+        description: "uefi-miatoll revision (Mu-Silicium 3.6: later releases do not boot miatoll)"
         type: string
-        default: "miatoll"
+        default: "miatoll-3.6"
       runner:
         description: "Runner image (macos-26 is often out of capacity)"
         type: choice
@@ -61,7 +61,7 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          brew install dtc llvm lld cmake mtools ninja bison pkgconf
+          brew install dtc llvm lld llvm@18 cmake mtools ninja bison pkgconf
           # ipsw from its pinned release: newer Homebrew refuses the untrusted blacktop tap.
           mkdir -p "$RUNNER_TEMP/ipsw" && gh release download v3.1.741 -R blacktop/ipsw \
             --pattern 'ipsw_3.1.741_macOS_universal.tar.gz' -O - | tar -xz -C "$RUNNER_TEMP/ipsw"
@@ -96,7 +96,13 @@ jobs:
         env:
           UNIXNU_UNIQUE_CHIP_ID: ${{ secrets.UNIXNU_UNIQUE_CHIP_ID }}
           GITHUB_TOKEN: ${{ github.token }}
-        run: scripts/package.sh --os 17 --uefi ../uefi-miatoll
+          # Mu-Silicium 3.6 builds against its own Mu_Basecore (release/202511), not UniXNU's pin.
+          UNIXNU_EDK2: ${{ github.workspace }}/uefi-miatoll/Mu_Basecore
+        run: |
+          # The firmware needs clang 18: newer clang makes images that do not boot miatoll.
+          export CLANG_BIN="$(brew --prefix llvm@18)/bin/"
+          "${CLANG_BIN}clang" --version | head -1
+          scripts/package.sh --os 17 --uefi ../uefi-miatoll
       - name: logs
         if: always()
         uses: actions/upload-artifact@v4

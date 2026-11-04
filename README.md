@@ -42,8 +42,8 @@ scripts/package.sh --os 17 --uefi ../uefi-miatoll
 fastboot boot boot.img
 ```
 
-If the phone loops on the Mi logo, the Mu-Silicium base is the suspect: HakiOS found that
-releases after Mu-Silicium 3.6 and images built with clang 23 do not boot miatoll.
+The firmware is Mu-Silicium 3.6 built with clang 18 on purpose: later releases and newer clang
+reset the phone at the Mi logo (seen again on 2026-11-05 with the current tree).
 
 ## Provenance
 

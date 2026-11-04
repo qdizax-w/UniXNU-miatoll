@@ -52,8 +52,9 @@ dsc = "Platforms/Xiaomi/miatollPkg/miatoll.dsc"
 fd = "Build/miatollPkg/{target}_CLANGPDB/FV/SILICIUM_UEFI.fd"
 preflight = ["scripts/fetch-miatoll-dtb.py"]
 submodules = ["Common/Mu", "Common/Mu_OEM_Sample", "Silicium-ACPI", "Silicon/Silicium/OpensslPkg/Library/OpensslLib/openssl"]
-patches = ["Resources/MuPatches/Gic-Spurious.patch"]
-packages = ["{uefi}", "{uefi}/Platforms/Xiaomi", "{tree}/package", "{tree}/drivers/DarwinBoot", "{edk2}", "{uefi}/Common/Mu", "{uefi}/Common/Mu_OEM_Sample", "{uefi}/Silicon/Qualcomm", "{uefi}/Silicon/Silicium", "{uefi}/Silicium-ACPI", "{uefi}/Silicium-ACPI/Platforms/Xiaomi", "{uefi}/Silicium-ACPI/Silicon/Qualcomm"]
+# What build_uefi.py of Mu-Silicium 3.6 applies to Mu_Basecore before building.
+patches = ["Resources/MuPatches/Auth-Service.patch", "Resources/MuPatches/Timer.patch", "Resources/MuPatches/Usb-Bus.patch"]
+packages = ["{uefi}", "{uefi}/Platforms/Xiaomi", "{tree}/package", "{tree}/drivers/DarwinBoot", "{edk2}", "{uefi}/Common/Mu", "{uefi}/Common/Mu_OEM_Sample", "{uefi}/Silicon/Qualcomm", "{uefi}/Silicon/Silicium", "{uefi}/Silicium-ACPI", "{uefi}/Silicium-ACPI/Platforms/Xiaomi", "{uefi}/Silicium-ACPI/SoCs/Qualcomm"]
 
 [firmware.defines]
 # Mu-Silicium miatoll model: 0 curtana (Redmi Note 9S), 1 curtana India, 2 curtana (Note 10 Lite),
