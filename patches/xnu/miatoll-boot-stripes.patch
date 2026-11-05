@@ -217,18 +217,10 @@ index bca4c7c..25099a9 100644
  	MOV64   x0, SCTLR_EL1_DEFAULT
  	MSR_SCTLR_EL1_X0
 diff --git a/osfmk/kern/debug.c b/osfmk/kern/debug.c
-index e9daeed..bead414 100644
+index e9daeed..9512240 100644
 --- a/osfmk/kern/debug.c
 +++ b/osfmk/kern/debug.c
-@@ -789,6 +789,7 @@ check_and_handle_nested_panic(uint64_t panic_options_mask, unsigned long panic_c
- #pragma clang diagnostic ignored "-Wformat-nonliteral"
- 			_doprnt(db_panic_str, db_panic_args, PE_kputc, 0);
- #pragma clang diagnostic pop
-+	miatoll_probe_panic();
- 			printf("\n<end nested panic string>\n");
- 		}
- 	}
-@@ -1126,6 +1127,8 @@ panic_with_thread_context(unsigned int reason, void *ctx, uint64_t debugger_opti
+@@ -1126,6 +1126,8 @@ panic_with_thread_context(unsigned int reason, void *ctx, uint64_t debugger_opti
  }
  #endif /* defined (__x86_64__) */
  
@@ -237,3 +229,11 @@ index e9daeed..bead414 100644
  #pragma clang diagnostic push
  #pragma clang diagnostic ignored "-Wmissing-noreturn"
  void
+@@ -1133,6 +1135,7 @@ panic_trap_to_debugger(const char *panic_format_str, va_list *panic_args, unsign
+     uint64_t panic_options_mask, void *panic_data_ptr, unsigned long panic_caller)
+ {
+ #pragma clang diagnostic pop
++	miatoll_probe_panic();
+ 
+ #if defined(__x86_64__) && (DEVELOPMENT || DEBUG)
+ 	read_lbr();
