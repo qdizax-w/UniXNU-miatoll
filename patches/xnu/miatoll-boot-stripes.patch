@@ -1,0 +1,239 @@
+diff --git a/osfmk/arm/arm_init.c b/osfmk/arm/arm_init.c
+index 7187c15..3de4bcd 100644
+--- a/osfmk/arm/arm_init.c
++++ b/osfmk/arm/arm_init.c
+@@ -343,6 +343,53 @@ arm_setup_pre_sign(void)
+  */
+ 
+ __startup_func
++/* miatoll boot stripes, see MIATOLL_BAR in start.s. Reaches the panel through the TTBR0 alias. */
++#define MIATOLL_PROBE_VA 0x2000000000ULL
++void miatoll_probe_start(boot_args *);
++void miatoll_probe_bar(unsigned int, uint32_t);
++void miatoll_probe_off(void);
++void miatoll_probe_panic(void);
++static uintptr_t miatoll_probe_fb;
++static uint64_t miatoll_probe_row, miatoll_probe_height;
++
++void
++miatoll_probe_start(boot_args *a)
++{
++	miatoll_probe_row = a->Video.v_rowBytes;
++	miatoll_probe_height = a->Video.v_height;
++	miatoll_probe_fb = (uintptr_t)MIATOLL_PROBE_VA + (a->Video.v_baseAddr & 0x1FFFFFULL);
++}
++
++void
++miatoll_probe_bar(unsigned int band, uint32_t color)
++{
++	if (miatoll_probe_fb == 0) {
++		return;
++	}
++	uint64_t top = miatoll_probe_row * (miatoll_probe_height >> 4);
++	uint64_t size = miatoll_probe_row * (miatoll_probe_height >> 5);
++	uintptr_t p = miatoll_probe_fb + top + band * size;
++	for (uint64_t i = 0; i < size; i += 4) {
++		*(volatile uint32_t *)(p + i) = color;
++	}
++	for (uint64_t i = 0; i < size; i += 64) {
++		__asm__ volatile ("dc cvac, %0" : : "r"(p + i));
++	}
++	__asm__ volatile ("dsb sy");
++}
++
++void
++miatoll_probe_off(void)
++{
++	miatoll_probe_fb = 0;
++}
++
++void
++miatoll_probe_panic(void)
++{
++	miatoll_probe_bar(13, 0xFFFF0000);
++}
++
+ void
+ arm_init(
+ 	boot_args       *args)
+@@ -354,15 +401,20 @@ arm_init(
+ 	DTEntry chosen = NULL;
+ 	unsigned int dt_entry_size = 0;
+ 
++	miatoll_probe_start(args);
++	miatoll_probe_bar(2, 0xFFFFFFFF);
++
+ 	arm_setup_pre_sign();
+ 
+ 	arm_slide_rebase_and_sign_image();
++	miatoll_probe_bar(3, 0xFF00FFFF);
+ 
+ 	/* If kernel integrity is supported, use a constant copy of the boot args. */
+ 	const_boot_args = *args;
+ 	BootArgs = args = &const_boot_args;
+ 
+ 	cpu_data_init(&BootCpuData);
++	miatoll_probe_bar(4, 0xFFFFFFFF);
+ #if defined(HAS_APPLE_PAC)
+ 	/* bootstrap cpu process dependent key for kernel has been loaded by start.s */
+ 	BootCpuData.rop_key = ml_default_rop_pid();
+@@ -370,6 +422,7 @@ arm_init(
+ #endif /* defined(HAS_APPLE_PAC) */
+ 
+ 	PE_init_platform(FALSE, args); /* Get platform expert set up */
++	miatoll_probe_bar(5, 0xFF00FFFF);
+ 	boot_progress_init();
+ 
+ #if __arm64__
+@@ -442,6 +495,7 @@ arm_init(
+ #endif
+ 
+ 	ml_parse_cpu_topology();
++	miatoll_probe_bar(6, 0xFFFFFFFF);
+ 
+ 
+ 	master_cpu = ml_get_boot_cpu_number();
+@@ -471,11 +525,13 @@ arm_init(
+ 	 */
+ 	thread->machine.preemption_count = 0;
+ 	cpu_bootstrap();
++	miatoll_probe_bar(7, 0xFF00FFFF);
+ 
+ 	rtclock_early_init();
+ 
+ 	kernel_debug_string_early("kernel_startup_bootstrap");
+ 	kernel_startup_bootstrap();
++	miatoll_probe_bar(8, 0xFFFFFFFF);
+ 
+ 	/*
+ 	 * Initialize the timer callout world
+@@ -485,6 +541,7 @@ arm_init(
+ 	cpu_init();
+ 
+ 	processor_bootstrap();
++	miatoll_probe_bar(9, 0xFF00FFFF);
+ 
+ 	if (PE_parse_boot_argn("maxmem", &maxmem, sizeof(maxmem))) {
+ 		xmaxmem = (uint64_t) maxmem * (1024 * 1024);
+@@ -532,6 +589,7 @@ arm_init(
+ #endif  /* __ARM_PAN_AVAILABLE__ */
+ 
+ 	boot_progress_stage("arm_vm_init enter");
++	miatoll_probe_bar(10, 0xFFFFFFFF);
+ 	arm_vm_init(xmaxmem, args);
+ 	boot_progress_stage("arm_vm_init returned");
+ 
+diff --git a/osfmk/arm64/arm_vm_init.c b/osfmk/arm64/arm_vm_init.c
+index a688021..bc6698e 100644
+--- a/osfmk/arm64/arm_vm_init.c
++++ b/osfmk/arm64/arm_vm_init.c
+@@ -1817,6 +1817,9 @@ init_ptpages(tt_entry_t *tt, vm_map_address_t start, vm_map_address_t end, bool
+ #define ARM64_PHYSMAP_SLIDE_RANGE (1ULL << 30) // 1 GB
+ #define ARM64_PHYSMAP_SLIDE_MASK  (ARM64_PHYSMAP_SLIDE_RANGE - 1)
+ 
++extern void miatoll_probe_bar(unsigned int, uint32_t);
++extern void miatoll_probe_off(void);
++
+ void
+ arm_vm_init(uint64_t memory_size, boot_args * args)
+ {
+@@ -2154,6 +2157,8 @@ arm_vm_init(uint64_t memory_size, boot_args * args)
+ 	ml_enable_monitor();
+ #endif
+ 
++	miatoll_probe_bar(11, 0xFFFFFF00);
++	miatoll_probe_off();
+ 	set_mmu_ttb(invalid_ttep & TTBR_BADDR_MASK);
+ 
+ 	flush_mmu_tlb();
+diff --git a/osfmk/arm64/start.s b/osfmk/arm64/start.s
+index bca4c7c..25099a9 100644
+--- a/osfmk/arm64/start.s
++++ b/osfmk/arm64/start.s
+@@ -351,6 +351,32 @@ start_cpu:
+ 
+ 	b		common_start
+ 
++/*
++ * miatoll boot stripes. This phone has no serial port, so a stripe on the panel is the only
++ * record of how far the kernel got before its console exists. Band $0 below DarwinBoot's green
++ * bar, colour $2$1 (0xAARRGGBB), MMU off, x20 = boot args PA. Clobbers x1-x5.
++ */
++.macro MIATOLL_BAR
++	ldr		x1, [x20, #0x28]					// Video.v_baseAddr
++	ldr		x2, [x20, #0x38]					// Video.v_rowBytes
++	ldr		x3, [x20, #0x48]					// Video.v_height
++	lsr		x4, x3, #4
++	mul		x4, x4, x2
++	lsr		x5, x3, #5
++	mul		x5, x5, x2
++	mov		x3, #($0)
++	mul		x3, x3, x5
++	add		x1, x1, x4
++	add		x1, x1, x3
++	movz	w2, #($1)
++	movk	w2, #($2), lsl #16
++1:
++	stp		w2, w2, [x1], #8
++	subs	x5, x5, #8
++	b.hi	1b
++	dsb		sy
++.endmacro
++
+ /*
+  * create_l1_table_entry
+  *
+@@ -471,6 +497,8 @@ LEXT(start_first_cpu)
+ 	mov		x20, x0
+ 	mov		x21, #0
+ 
++	MIATOLL_BAR 0, 0x00FF, 0xFF00				// blue: kernel entry
++
+ 	// Set low reset vector before attempting any loads
+ 	adrp	x0, EXT(LowExceptionVectorBase)@page
+ 	add		x0, x0, EXT(LowExceptionVectorBase)@pageoff
+@@ -623,6 +651,13 @@ Lbootstrap_tables_exhausted:
+ 	// the early debugger rather than corrupting memory or forging a map.
+ 	b Lbootstrap_tables_exhausted
+ Lbootstrap_tables_ready:
++	/* Alias the frame buffer in TTBR0 for the C stripes, in an L1 slot of its own. */
++	ldr		x15, [x20, #0x28]
++	and		x15, x15, #0xffffffffffe00000
++	mov		x14, #0x2000000000
++	mov		x5, #7
++	create_bootstrap_mapping x14, x15, x5, x1, x2, x9, x10, x11, x12, x13
++
+ 	/* Ensure TTEs are visible */
+ 	dsb		ish
+ 
+@@ -761,6 +796,9 @@ common_start:
+ 	PAC_INIT_KEY_STATE tmp=x0, tmp2=x1
+ #endif /* HAS_APPLE_PAC */
+ 
++	cbnz	x21, 2f
++	MIATOLL_BAR 1, 0x00FF, 0xFFFF				// magenta: about to enable the MMU
++2:
+ 	// Enable caches, MMU, ROP and JOP
+ 	MOV64   x0, SCTLR_EL1_DEFAULT
+ 	MSR_SCTLR_EL1_X0
+diff --git a/osfmk/kern/debug.c b/osfmk/kern/debug.c
+index e9daeed..bead414 100644
+--- a/osfmk/kern/debug.c
++++ b/osfmk/kern/debug.c
+@@ -789,6 +789,7 @@ check_and_handle_nested_panic(uint64_t panic_options_mask, unsigned long panic_c
+ #pragma clang diagnostic ignored "-Wformat-nonliteral"
+ 			_doprnt(db_panic_str, db_panic_args, PE_kputc, 0);
+ #pragma clang diagnostic pop
++	miatoll_probe_panic();
+ 			printf("\n<end nested panic string>\n");
+ 		}
+ 	}
+@@ -1126,6 +1127,8 @@ panic_with_thread_context(unsigned int reason, void *ctx, uint64_t debugger_opti
+ }
+ #endif /* defined (__x86_64__) */
+ 
++extern void miatoll_probe_panic(void);
++
+ #pragma clang diagnostic push
+ #pragma clang diagnostic ignored "-Wmissing-noreturn"
+ void
